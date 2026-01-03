@@ -148,21 +148,25 @@ class OuraClient:
     
     def get_todays_data(self) -> dict:
         """
-        Get today's sleep data (last night's sleep) and yesterday's activity data.
-        
+        Get yesterday's sleep data (most recent available) and activity data.
+
+        NOTE: Due to sync delays, at 10 AM today's sleep data may not be available yet.
+        Instead, we query for yesterday's sleep (the most recent complete data).
+
         Oura assigns sleep to the day you WAKE UP, so at 10am on Dec 27th:
-        - Sleep data: Dec 27th (the sleep you just woke up from, night of Dec 26-27)
-        - Activity data: Dec 26th (yesterday's full day of activity)
-        
+        - Sleep data: Dec 26th (the sleep from night of Dec 25-26, waking up on Dec 26)
+        - Activity data: Dec 26th (full day of activity on Dec 26)
+        - Readiness: Dec 26th (based on Dec 26 sleep)
+
         Returns:
             Dict containing sleep and activity data
         """
+        two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         today = datetime.now().strftime("%Y-%m-%d")
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        
+
         data = {
-            "date": today,
+            "date": yesterday,
             "activity_date": yesterday,
             "fetched_at": datetime.now().isoformat(),
             "daily_sleep": None,
@@ -173,21 +177,21 @@ class OuraClient:
             "workouts": None,
             "sleep_time": None
         }
-        
-        # Sleep data: today (the sleep you woke up from this morning)
+
+        # Sleep data: yesterday (most recent complete sleep data)
         try:
-            data["daily_sleep"] = self.get_daily_sleep(today, tomorrow)
+            data["daily_sleep"] = self.get_daily_sleep(yesterday, today)
         except requests.exceptions.RequestException as e:
             data["daily_sleep"] = {"error": str(e)}
-        
+
         try:
-            data["sleep_periods"] = self.get_sleep_periods(today, tomorrow)
+            data["sleep_periods"] = self.get_sleep_periods(yesterday, today)
         except requests.exceptions.RequestException as e:
             data["sleep_periods"] = {"error": str(e)}
-        
-        # Readiness is based on last night's sleep, so it's today
+
+        # Readiness is based on yesterday's sleep
         try:
-            data["daily_readiness"] = self.get_daily_readiness(today, tomorrow)
+            data["daily_readiness"] = self.get_daily_readiness(yesterday, today)
         except requests.exceptions.RequestException as e:
             data["daily_readiness"] = {"error": str(e)}
         
@@ -196,19 +200,19 @@ class OuraClient:
             data["daily_activity"] = self.get_daily_activity(yesterday, today)
         except requests.exceptions.RequestException as e:
             data["daily_activity"] = {"error": str(e)}
-        
+
         try:
             data["daily_stress"] = self.get_daily_stress(yesterday, today)
         except requests.exceptions.RequestException as e:
             data["daily_stress"] = {"error": str(e)}
-        
+
         try:
             data["workouts"] = self.get_workouts(yesterday, today)
         except requests.exceptions.RequestException as e:
             data["workouts"] = {"error": str(e)}
-        
+
         try:
-            data["sleep_time"] = self.get_sleep_time(yesterday, today)
+            data["sleep_time"] = self.get_sleep_time(two_days_ago, yesterday)
         except requests.exceptions.RequestException as e:
             data["sleep_time"] = {"error": str(e)}
         
